@@ -35,9 +35,8 @@ th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;white
 tr.r{cursor:pointer}tr.r:hover{background:var(--bg)}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
 .empty{padding:28px 16px;color:var(--mut)}
-.ov{padding:12px 16px 40px}
+.ov{position:fixed;inset:0;z-index:20;overflow:auto;background:rgba(0,0,0,.48);padding:12px 16px 40px}
 .sheet{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;width:min(580px,100%);padding:18px;margin:0 auto}
-body.edit #stats,body.edit #board,body.edit #tbl,body.edit #foot{display:none}
 .g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g label{font-size:12px;color:var(--mut)}.full{grid-column:1/-1}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.row .sp{margin-left:auto}
 .hide{display:none}.st{font-size:12px;color:var(--mut)}.help{font-size:12px;color:var(--mut);margin:10px 0 0}
