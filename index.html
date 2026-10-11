@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Tracker</title>
+<style>
+:root{--bg:#e9edf1;--card:#fff;--ink:#10202b;--mut:#5d6b78;--line:#d3dae1;--acc:#1f5eff;--bad:#c62828}
+@media(prefers-color-scheme:dark){:root{--bg:#0d141b;--card:#16212b;--ink:#e8eef3;--mut:#8a9aa8;--line:#25323e;--acc:#5b8cff;--bad:#ff6b6b}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 "Avenir Next","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 16px;position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+h1{font-size:19px;margin:0 auto 0 0;font-weight:700}
+button,input,select,textarea{font:inherit;color:inherit}
+.btn{border:1px solid var(--line);background:var(--card);padding:8px 12px;border-radius:8px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{border-color:var(--acc)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.btn.d{color:var(--bad)}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px;padding:12px 16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+.stat b{display:block;font-size:22px}.stat span{color:var(--mut);font-size:12px}
+.stat.hot b{color:var(--bad)}.stat.cash b{color:#1a8f4c}
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(240px,1fr);gap:10px;padding:0 16px 24px;overflow-x:auto;align-items:start}
+.col{background:color-mix(in srgb,var(--card) 55%,var(--bg));border:1px solid var(--line);border-top:4px solid var(--c);border-radius:14px;padding:8px;min-height:180px}
+.col h3{margin:4px 4px 8px;font-size:14px;display:flex;justify-content:space-between}
+.col.over{outline:2px dashed var(--c)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:7px;cursor:grab}
+.card:hover{border-color:var(--c)}
+.card b{display:block}.card small{display:block;color:var(--mut)}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:99px;background:var(--bg);margin:5px 4px 0 0}
+.tag.due{background:var(--bad);color:#fff}
+.tbl{margin:0 16px 24px;overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+tr.r{cursor:pointer}tr.r:hover{background:var(--bg)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
+.empty{padding:28px 16px;color:var(--mut)}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);width:min(580px,94vw);padding:18px}
+dialog::backdrop{background:#0009}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g label{font-size:12px;color:var(--mut)}.full{grid-column:1/-1}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.row .sp{margin-left:auto}
+.hide{display:none}.st{font-size:12px;color:var(--mut)}.help{font-size:12px;color:var(--mut);margin:10px 0 0}
+</style></head>
+<body>
+<header>
+<h1>Lead Tracker</h1>
+<input id="q" placeholder="Search name, city, notes" style="width:210px">
+<span class="st" id="sync">Local only</span><button class="btn" id="vb">Table view</button>
+<button class="btn" id="imp">Import CSV</button>
+<button class="btn" id="exp">Export CSV</button>
+<button class="btn" id="cfgb">Cloud sync</button>
+<button class="btn p" id="add">+ Add business</button>
+<input type="file" id="f" accept=".csv,text/csv" class="hide">
+</header>
+<div class="stats" id="stats"></div>
+<div class="board" id="board"></div>
+<div class="tbl hide" id="tbl"></div>
+<div class="empty" id="foot">Saved in this browser. Turn on Cloud sync to keep your CSV in your own private GitHub repo and use it on any device.</div>
+<dialog id="s"><h2 style="margin:0 0 12px;font-size:17px">Cloud sync with GitHub</h2>
+<div class="g">
+<div class="full"><label>Private data repo (owner/name)</label><input id="c_repo" placeholder="yourname/lead-data"></div>
+<div class="full"><label>Access token (Contents: read and write)</label><input id="c_tok" type="password" autocomplete="off"></div>
+<div><label>File path</label><input id="c_path" placeholder="leads.csv"></div>
+<div><label>Branch (leave empty for default)</label><input id="c_br" placeholder="main"></div>
+</div>
+<p class="help">The token stays in this browser only. Enter it once on each device. Keep the data repo private so your leads stay private.</p>
+<div class="row"><button class="btn d" id="c_off">Turn off</button><button class="btn sp" id="c_cx">Cancel</button><button class="btn p" id="c_sv">Save and sync</button></div></dialog>
+
+<dialog id="m"><div class="g" id="form"></div><div class="row" id="acts"></div></dialog>
+
+<script>
+const COLS=['id','name','category','city','phone','rating','reviews','gaps','channel','status','followup','price_eur','paid_eur','notes'];
+const ST=['New','Contacted','Replied','Yes','Paid','Lost'];
+const CLR={New:'#7a8a99',Contacted:'#1f5eff',Replied:'#e08a00',Yes:'#8a3ffc',Paid:'#1a8f4c',Lost:'#c62828'};
+const FIELDS=[['name','Business name','full'],['category','Category'],['city','City'],['phone','Phone'],['rating','Google rating'],['reviews','Number of reviews'],['channel','Channel','sel',['','WhatsApp','Call','Walk-in','Other']],['status','Status','sel',ST],['followup','Follow-up date','date'],['price_eur','Offer price (EUR)'],['paid_eur','Money received (EUR)'],['gaps','Gaps found on their listing','full'],['notes','Notes','full','ta']];
+let data=[],view='board',q='',cur=null;
+try{data=JSON.parse(localStorage.getItem('leads')||'[]')}catch(e){}
+const $=s=>document.querySelector(s);
+const save=()=>{try{localStorage.setItem('leads',JSON.stringify(data));localStorage.setItem('dirty','1')}catch(e){}if(ready()){clearTimeout(timer);timer=setTimeout(push,1200);setSt('Saving…')}};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const isDue=d=>d.followup&&d.followup<=new Date().toISOString().slice(0,10)&&d.status!='Paid'&&d.status!='Lost';
+const wa=p=>{p=String(p).replace(/[^\d+]/g,'');p=p[0]=='+'?p.slice(1):p[0]=='0'?'31'+p.slice(1):p;return 'https://wa.me/'+p};
+
+function parseCSV(t){const rows=[];let r=[],c='',qt=false;t=t.replace(/^\uFEFF/,'');
+for(let i=0;i<t.length;i++){const ch=t[i];
+if(qt){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else qt=false}else c+=ch}
+else if(ch=='"')qt=true;
+else if(ch==','){r.push(c);c=''}
+else if(ch=='\n'||ch=='\r'){if(ch=='\r'&&t[i+1]=='\n')i++;r.push(c);c='';rows.push(r);r=[]}
+else c+=ch}
+if(c||r.length){r.push(c);rows.push(r)}return rows}
+const csvEsc=v=>{v=String(v==null?'':v);return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+
+function card(d){return `<div class="card" draggable="true" data-id="${d.id}"><b>${esc(d.name)}</b><small>${esc([d.category,d.city].filter(Boolean).join(', '))}</small><div>`+
+(d.rating?`<span class="tag">★ ${esc(d.rating)}${d.reviews?' ('+esc(d.reviews)+')':''}</span>`:'')+
+(d.channel?`<span class="tag">${esc(d.channel)}</span>`:'')+
+(d.followup?`<span class="tag ${isDue(d)?'due':''}">Follow up ${esc(d.followup)}</span>`:'')+
+(+d.paid_eur?`<span class="tag">€${esc(d.paid_eur)} received</span>`:'')+
+`</div>${d.gaps?`<small>${esc(d.gaps)}</small>`:''}</div>`}
+
+function render(){
+const n=s=>data.filter(d=>d.status==s).length,rev=data.reduce((a,d)=>a+(+d.paid_eur||0),0),due=data.filter(isDue).length;
+$('#stats').innerHTML=[['Leads',data.length,''],['Contacted',data.length-n('New'),''],['Replied or further',n('Replied')+n('Yes')+n('Paid'),''],['Said yes',n('Yes'),''],['Paid',n('Paid'),''],['Follow-ups due',due,due?'hot':''],['Money received','€'+rev,'cash']].map(x=>`<div class="stat ${x[2]}"><b>${x[1]}</b><span>${x[0]}</span></div>`).join('');
+const V=data.filter(d=>!q||COLS.some(k=>k!='id'&&String(d[k]||'').toLowerCase().includes(q)));
+$('#board').classList.toggle('hide',view!='board');$('#tbl').classList.toggle('hide',view!='table');
+$('#vb').textContent=view=='board'?'Table view':'Board view';
+$('#board').innerHTML=ST.map(s=>{const c=V.filter(d=>d.status==s);return `<div class="col" data-s="${s}" style="--c:${CLR[s]}"><h3>${s}<span>${c.length}</span></h3>${c.map(card).join('')}</div>`}).join('');
+$('#tbl').innerHTML=V.length?`<table><tr><th>Business</th><th>Category</th><th>City</th><th>Phone</th><th>Status</th><th>Follow-up</th><th>Rating</th><th>Received</th></tr>`+V.map(d=>`<tr class="r" data-id="${d.id}"><td>${esc(d.name)}</td><td>${esc(d.category)}</td><td>${esc(d.city)}</td><td>${esc(d.phone)}</td><td><span class="dot" style="--c:${CLR[d.status]}"></span>${d.status}</td><td>${esc(d.followup)}</td><td>${esc(d.rating)} ${d.reviews?'('+esc(d.reviews)+')':''}</td><td>${+d.paid_eur?'€'+esc(d.paid_eur):''}</td></tr>`).join('')+`</table>`:'<div class="empty">No businesses yet. Add one or import a CSV.</div>';
+}
+
+function openM(id){
+const d=data.find(x=>x.id==id);cur=d?{...d}:{id:uid(),status:'New',channel:'WhatsApp'};
+$('#form').innerHTML=FIELDS.map(f=>{const v=esc(cur[f[0]]);let inp;
+if(f[2]=='sel')inp=`<select data-k="${f[0]}">${f[3].map(o=>`<option ${o==cur[f[0]]?'selected':''}>${o}</option>`).join('')}</select>`;
+else if(f[3]=='ta')inp=`<textarea rows="4" data-k="${f[0]}">${v}</textarea>`;
+else inp=`<input data-k="${f[0]}" ${f[2]=='date'?'type="date"':''} value="${v}">`;
+return `<div class="${f[2]=='full'||f[3]=='ta'?'full':''}"><label>${f[1]}</label>${inp}</div>`}).join('');
+$('#acts').innerHTML=(cur.phone?`<a class="btn" href="tel:${esc(cur.phone)}">Call</a><a class="btn" target="_blank" href="${wa(cur.phone)}">WhatsApp</a>`:'')+
+(d?`<button class="btn d" id="del">Delete</button>`:'')+`<button class="btn sp" id="cx">Cancel</button><button class="btn p" id="sv">Save</button>`;
+$('#cx').onclick=()=>$('#m').close();
+if(d)$('#del').onclick=()=>{if(confirm('Delete '+d.name+'?')){data=data.filter(x=>x.id!=d.id);save();$('#m').close();render()}};
+$('#sv').onclick=()=>{const o={...cur};document.querySelectorAll('#m [data-k]').forEach(e=>o[e.dataset.k]=e.value.trim());
+if(!o.name){alert('Add a business name first.');return}
+const i=data.findIndex(x=>x.id==o.id);if(i<0)data.unshift(o);else data[i]=o;save();$('#m').close();render()};
+$('#m').showModal()}
+
+$('#add').onclick=()=>openM();
+$('#vb').onclick=()=>{view=view=='board'?'table':'board';render()};
+$('#q').oninput=e=>{q=e.target.value.toLowerCase();render()};
+$('#board').onclick=e=>{const c=e.target.closest('.card');if(c)openM(c.dataset.id)};
+$('#tbl').onclick=e=>{const r=e.target.closest('tr.r');if(r)openM(r.dataset.id)};
+let drag=null;
+$('#board').ondragstart=e=>{const c=e.target.closest('.card');if(c){drag=c.dataset.id;e.dataTransfer.setData('text/plain',drag)}};
+$('#board').ondragover=e=>{const c=e.target.closest('.col');if(c){e.preventDefault();document.querySelectorAll('.col').forEach(x=>x.classList.toggle('over',x==c))}};
+$('#board').ondragleave=e=>{if(!e.relatedTarget||!e.relatedTarget.closest('.col'))document.querySelectorAll('.col').forEach(x=>x.classList.remove('over'))};
+$('#board').ondrop=e=>{e.preventDefault();const c=e.target.closest('.col'),d=data.find(x=>x.id==drag);
+if(c&&d){d.status=c.dataset.s;if(d.status=='Paid'&&!d.paid_eur&&d.price_eur)d.paid_eur=d.price_eur;save()}drag=null;render()};
+$('#exp').onclick=()=>{const t=toCSV();
+const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+t],{type:'text/csv'}));a.download='leads.csv';a.click()};
+$('#imp').onclick=()=>$('#f').click();
+$('#f').onchange=e=>{const fl=e.target.files[0];if(!fl)return;const rd=new FileReader();
+rd.onload=()=>{const rows=parseCSV(rd.result);if(rows.length<2){alert('No rows found in that CSV.');return}
+const h=rows[0].map(x=>x.trim().toLowerCase());let k=0;
+rows.slice(1).forEach(r=>{const o={};COLS.forEach(c=>{const i=h.indexOf(c);o[c]=i>=0?(r[i]||'').trim():''});
+if(!o.name)return;o.id=o.id||uid();o.status=ST.find(s=>s.toLowerCase()==o.status.toLowerCase())||'New';
+const j=data.findIndex(x=>x.id==o.id);if(j>=0)data[j]=o;else data.push(o);k++});
+save();render();alert('Imported '+k+' businesses.')};rd.readAsText(fl);e.target.value=''};
+let cfg={};try{cfg=JSON.parse(localStorage.getItem('ghcfg')||'{}')}catch(e){}
+let sha=null,timer=null,busy=false;
+const ready=()=>!!(cfg.token&&cfg.repo);
+const url=()=>`https://api.github.com/repos/${cfg.repo}/contents/${encodeURI(cfg.path||'leads.csv')}`;
+const hdr=()=>({Authorization:'Bearer '+cfg.token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'});
+const setSt=(t,bad)=>{const s=$('#sync');s.textContent=t;s.style.color=bad?'var(--bad)':''};
+const toCSV=()=>[COLS.join(','),...data.map(d=>COLS.map(k=>csvEsc(d[k])).join(','))].join('\r\n')+'\r\n';
+const b64e=s=>{let b='';new TextEncoder().encode(s).forEach(x=>b+=String.fromCharCode(x));return btoa(b)};
+const b64d=s=>new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,'')),c=>c.charCodeAt(0)));
+function fromCSV(t){const rows=parseCSV(t),out=[];if(!rows.length)return out;const h=rows[0].map(x=>x.trim().toLowerCase());
+rows.slice(1).forEach(r=>{const o={};COLS.forEach(c=>{const i=h.indexOf(c);o[c]=i>=0?(r[i]||'').trim():''});
+if(!o.name)return;o.id=o.id||uid();o.status=ST.find(s=>s.toLowerCase()==o.status.toLowerCase())||'New';out.push(o)});return out}
+const merge=rows=>{const m=new Map(rows.map(d=>[d.id,d]));data.forEach(d=>m.set(d.id,d));data=[...m.values()]};
+async function remote(){const ref=cfg.branch?'?ref='+encodeURIComponent(cfg.branch):'';
+const r=await fetch(url()+ref,{headers:hdr(),cache:'no-store'});
+if(r.status==404)return{sha:null,rows:[]};
+if(!r.ok)throw new Error(r.status==401?'Token rejected':r.status==403?'No permission':'GitHub error '+r.status);
+const j=await r.json();return{sha:j.sha,rows:fromCSV(b64d(j.content||''))}}
+async function pull(){if(!ready()){setSt('Local only');return}
+setSt('Syncing…');
+try{const r=await remote();sha=r.sha;
+if(r.sha===null){await push();return}
+if(localStorage.getItem('dirty')=='1'){merge(r.rows);save()}
+else{data=r.rows;try{localStorage.setItem('leads',JSON.stringify(data))}catch(e){}setSt('Synced')}
+render()}catch(e){setSt(e.message||'Offline, saved locally',1)}}
+async function push(){if(!ready())return;
+if(busy){clearTimeout(timer);timer=setTimeout(push,1500);return}
+busy=true;setSt('Saving…');
+try{for(let n=0;n<2;n++){
+const body={message:'Update leads',content:b64e(toCSV())};if(sha)body.sha=sha;if(cfg.branch)body.branch=cfg.branch;
+const r=await fetch(url(),{method:'PUT',headers:{...hdr(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+if(r.ok){sha=(await r.json()).content.sha;localStorage.setItem('dirty','0');setSt('Synced');break}
+if((r.status==409||r.status==422)&&n==0){const x=await remote();sha=x.sha;merge(x.rows);render();continue}
+throw new Error(r.status==401?'Token rejected':r.status==403||r.status==404?'No access to that repo':'GitHub error '+r.status)}
+}catch(e){setSt(e.message||'Offline, saved locally',1)}
+busy=false}
+$('#cfgb').onclick=()=>{$('#c_repo').value=cfg.repo||'';$('#c_tok').value=cfg.token||'';$('#c_path').value=cfg.path||'';$('#c_br').value=cfg.branch||'';$('#s').showModal()};
+$('#c_cx').onclick=()=>$('#s').close();
+$('#c_off').onclick=()=>{cfg={};localStorage.removeItem('ghcfg');$('#s').close();setSt('Local only')};
+$('#c_sv').onclick=()=>{const n={repo:$('#c_repo').value.trim(),token:$('#c_tok').value.trim(),path:$('#c_path').value.trim(),branch:$('#c_br').value.trim()};
+if(n.repo.split('/').length!=2||!n.token){alert('Enter the repo as owner/name and paste your token.');return}
+cfg=n;localStorage.setItem('ghcfg',JSON.stringify(cfg));$('#s').close();pull()};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ready()&&localStorage.getItem('dirty')!='1')pull()});
+render();pull();
+</script></body></html>
