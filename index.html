@@ -14,7 +14,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .btn:hover{border-color:var(--acc)}
 .btn.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
 .btn.d{color:var(--bad)}
-input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:16px}
 :focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px;padding:12px 16px}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
@@ -24,7 +24,7 @@ input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);b
 .col{background:color-mix(in srgb,var(--card) 55%,var(--bg));border:1px solid var(--line);border-top:4px solid var(--c);border-radius:14px;padding:8px;min-height:180px}
 .col h3{margin:4px 4px 8px;font-size:14px;display:flex;justify-content:space-between}
 .col.over{outline:2px dashed var(--c)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:7px;cursor:grab}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:7px;cursor:pointer}
 .card:hover{border-color:var(--c)}
 .card b{display:block}.card small{display:block;color:var(--mut)}
 .tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:99px;background:var(--bg);margin:5px 4px 0 0}
@@ -35,8 +35,8 @@ th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;white
 tr.r{cursor:pointer}tr.r:hover{background:var(--bg)}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
 .empty{padding:28px 16px;color:var(--mut)}
-dialog{border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);width:min(580px,94vw);padding:18px}
-dialog::backdrop{background:#0009}
+.ov{position:fixed;inset:0;z-index:50;background:#000a;display:flex;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:max(12px,env(safe-area-inset-top)) 12px 40px}
+.sheet{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;width:min(580px,100%);padding:18px;margin:auto 0}
 .g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g label{font-size:12px;color:var(--mut)}.full{grid-column:1/-1}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.row .sp{margin-left:auto}
 .hide{display:none}.st{font-size:12px;color:var(--mut)}.help{font-size:12px;color:var(--mut);margin:10px 0 0}
@@ -56,7 +56,7 @@ dialog::backdrop{background:#0009}
 <div class="board" id="board"></div>
 <div class="tbl hide" id="tbl"></div>
 <div class="empty" id="foot">Saved in this browser. Turn on Cloud sync to keep your CSV in your own private GitHub repo and use it on any device.</div>
-<dialog id="s"><h2 style="margin:0 0 12px;font-size:17px">Cloud sync with GitHub</h2>
+<div class="ov hide" id="s"><div class="sheet"><h2 style="margin:0 0 12px;font-size:17px">Cloud sync with GitHub</h2>
 <div class="g">
 <div class="full"><label>Private data repo (owner/name)</label><input id="c_repo" placeholder="yourname/lead-data"></div>
 <div class="full"><label>Access token (Contents: read and write)</label><input id="c_tok" type="password" autocomplete="off"></div>
@@ -64,9 +64,9 @@ dialog::backdrop{background:#0009}
 <div><label>Branch (leave empty for default)</label><input id="c_br" placeholder="main"></div>
 </div>
 <p class="help">The token stays in this browser only. Enter it once on each device. Keep the data repo private so your leads stay private.</p>
-<div class="row"><button class="btn d" id="c_off">Turn off</button><button class="btn sp" id="c_cx">Cancel</button><button class="btn p" id="c_sv">Save and sync</button></div></dialog>
+<div class="row"><button class="btn d" id="c_off">Turn off</button><button class="btn sp" id="c_cx">Cancel</button><button class="btn p" id="c_sv">Save and sync</button></div></div></div>
 
-<dialog id="m"><div class="g" id="form"></div><div class="row" id="acts"></div></dialog>
+<div class="ov hide" id="m"><div class="sheet"><div class="g" id="form"></div><div class="row" id="acts"></div></div></div>
 
 <script>
 const COLS=['id','name','category','city','phone','rating','reviews','gaps','channel','status','followup','price_eur','paid_eur','notes'];
@@ -76,6 +76,8 @@ const FIELDS=[['name','Business name','full'],['category','Category'],['city','C
 let data=[],view='board',q='',cur=null;
 try{data=JSON.parse(localStorage.getItem('leads')||'[]')}catch(e){}
 const $=s=>document.querySelector(s);
+const DRAG=matchMedia('(hover:hover) and (pointer:fine)').matches;
+['m','s'].forEach(id=>{const e=$('#'+id);e.showModal=()=>e.classList.remove('hide');e.close=()=>e.classList.add('hide');e.onclick=ev=>{if(ev.target==e)e.close()}});
 const save=()=>{try{localStorage.setItem('leads',JSON.stringify(data));localStorage.setItem('dirty','1')}catch(e){}if(ready()){clearTimeout(timer);timer=setTimeout(push,1200);setSt('Saving…')}};
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -92,7 +94,7 @@ else c+=ch}
 if(c||r.length){r.push(c);rows.push(r)}return rows}
 const csvEsc=v=>{v=String(v==null?'':v);return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
 
-function card(d){return `<div class="card" draggable="true" data-id="${d.id}"><b>${esc(d.name)}</b><small>${esc([d.category,d.city].filter(Boolean).join(', '))}</small><div>`+
+function card(d){return `<div class="card" draggable="${DRAG}" data-id="${d.id}"><b>${esc(d.name)}</b><small>${esc([d.category,d.city].filter(Boolean).join(', '))}</small><div>`+
 (d.rating?`<span class="tag">★ ${esc(d.rating)}${d.reviews?' ('+esc(d.reviews)+')':''}</span>`:'')+
 (d.channel?`<span class="tag">${esc(d.channel)}</span>`:'')+
 (d.followup?`<span class="tag ${isDue(d)?'due':''}">Follow up ${esc(d.followup)}</span>`:'')+
