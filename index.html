@@ -35,15 +35,16 @@ th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;white
 tr.r{cursor:pointer}tr.r:hover{background:var(--bg)}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
 .empty{padding:28px 16px;color:var(--mut)}
-.ov{position:fixed;inset:0;z-index:50;background:#000a;display:flex;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:max(12px,env(safe-area-inset-top)) 12px 40px}
-.sheet{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;width:min(580px,100%);padding:18px;margin:auto 0}
+.ov{padding:12px 16px 40px}
+.sheet{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;width:min(580px,100%);padding:18px;margin:0 auto}
+body.edit #stats,body.edit #board,body.edit #tbl,body.edit #foot{display:none}
 .g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g label{font-size:12px;color:var(--mut)}.full{grid-column:1/-1}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.row .sp{margin-left:auto}
 .hide{display:none}.st{font-size:12px;color:var(--mut)}.help{font-size:12px;color:var(--mut);margin:10px 0 0}
 </style></head>
 <body>
 <header>
-<h1>Lead Tracker</h1>
+<h1>Lead Tracker <small style="font-size:11px;color:var(--mut);font-weight:400">v5</small></h1>
 <input id="q" placeholder="Search name, city, notes" style="width:210px">
 <span class="st" id="sync">Local only</span><button class="btn" id="vb">Table view</button>
 <button class="btn" id="imp">Import CSV</button>
@@ -64,11 +65,12 @@ tr.r{cursor:pointer}tr.r:hover{background:var(--bg)}
 <div><label>Branch (leave empty for default)</label><input id="c_br" placeholder="main"></div>
 </div>
 <p class="help">The token stays in this browser only. Enter it once on each device. Keep the data repo private so your leads stay private.</p>
-<div class="row"><button class="btn d" id="c_off">Turn off</button><button class="btn sp" id="c_cx">Cancel</button><button class="btn p" id="c_sv">Save and sync</button></div></div></div>
+<div class="row"><button class="btn" id="c_rb">Restore previous list</button><button class="btn d" id="c_off">Turn off</button><button class="btn sp" id="c_cx">Cancel</button><button class="btn p" id="c_sv">Save and sync</button></div></div></div>
 
-<div class="ov hide" id="m"><div class="sheet"><div class="g" id="form"></div><div class="row" id="acts"></div></div></div>
+<div class="ov hide" id="m"><div class="sheet"><button class="btn" id="bk" style="margin-bottom:12px">← Back to list</button><div class="g" id="form"></div><div class="row" id="acts"></div></div></div>
 
 <script>
+window.addEventListener('error',e=>{const b=document.createElement('div');b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#c62828;color:#fff;padding:10px;border-radius:8px;font-size:13px';b.textContent='Error: '+e.message;document.body.appendChild(b)});
 const COLS=['id','name','category','city','phone','rating','reviews','gaps','channel','status','followup','price_eur','paid_eur','notes'];
 const ST=['New','Contacted','Replied','Yes','Paid','Lost'];
 const CLR={New:'#7a8a99',Contacted:'#1f5eff',Replied:'#e08a00',Yes:'#8a3ffc',Paid:'#1a8f4c',Lost:'#c62828'};
@@ -77,18 +79,19 @@ let data=[],view='board',q='',cur=null;
 try{data=JSON.parse(localStorage.getItem('leads')||'[]')}catch(e){}
 const $=s=>document.querySelector(s);
 const DRAG=matchMedia('(hover:hover) and (pointer:fine)').matches;
-['m','s'].forEach(id=>{const e=$('#'+id);e.showModal=()=>e.classList.remove('hide');e.close=()=>e.classList.add('hide');e.onclick=ev=>{if(ev.target==e)e.close()}});
+['m','s'].forEach(id=>{const e=$('#'+id);e.showModal=()=>{document.body.classList.add('edit');e.classList.remove('hide');scrollTo(0,0)};e.close=()=>{e.classList.add('hide');document.body.classList.remove('edit')}});
+$('#bk').onclick=()=>$('#m').close();
 const save=()=>{try{localStorage.setItem('leads',JSON.stringify(data));localStorage.setItem('dirty','1')}catch(e){}if(ready()){clearTimeout(timer);timer=setTimeout(push,1200);setSt('Saving…')}};
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const isDue=d=>d.followup&&d.followup<=new Date().toISOString().slice(0,10)&&d.status!='Paid'&&d.status!='Lost';
 const wa=p=>{p=String(p).replace(/[^\d+]/g,'');p=p[0]=='+'?p.slice(1):p[0]=='0'?'31'+p.slice(1):p;return 'https://wa.me/'+p};
 
-function parseCSV(t){const rows=[];let r=[],c='',qt=false;t=t.replace(/^\uFEFF/,'');
+function parseCSV(t){const rows=[];let r=[],c='',qt=false;t=t.replace(/^\uFEFF/,'');const f=t.split(/\r?\n/)[0],D=(f.match(/;/g)||[]).length>(f.match(/,/g)||[]).length?';':',';
 for(let i=0;i<t.length;i++){const ch=t[i];
 if(qt){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else qt=false}else c+=ch}
 else if(ch=='"')qt=true;
-else if(ch==','){r.push(c);c=''}
+else if(ch==D){r.push(c);c=''}
 else if(ch=='\n'||ch=='\r'){if(ch=='\r'&&t[i+1]=='\n')i++;r.push(c);c='';rows.push(r);r=[]}
 else c+=ch}
 if(c||r.length){r.push(c);rows.push(r)}return rows}
@@ -169,23 +172,24 @@ const j=await r.json();return{sha:j.sha,rows:fromCSV(b64d(j.content||''))}}
 async function pull(){if(!ready()){setSt('Local only');return}
 setSt('Syncing…');
 try{const r=await remote();sha=r.sha;
-if(r.sha===null){await push();return}
-if(localStorage.getItem('dirty')=='1'){merge(r.rows);save()}
-else{data=r.rows;try{localStorage.setItem('leads',JSON.stringify(data))}catch(e){}setSt('Synced')}
-render()}catch(e){setSt(e.message||'Offline, saved locally',1)}}
+if(r.sha===null||(!r.rows.length&&data.length)){await push();return}
+if(localStorage.getItem('dirty')=='1'){merge(r.rows);render();save();return}
+try{localStorage.setItem('leads_backup',JSON.stringify(data));data=r.rows;localStorage.setItem('leads',JSON.stringify(data))}catch(e){data=r.rows}
+setSt('Synced, '+data.length+' leads');render()}catch(e){setSt(e.message||'Offline, saved locally',1)}}
 async function push(){if(!ready())return;
 if(busy){clearTimeout(timer);timer=setTimeout(push,1500);return}
 busy=true;setSt('Saving…');
 try{for(let n=0;n<2;n++){
 const body={message:'Update leads',content:b64e(toCSV())};if(sha)body.sha=sha;if(cfg.branch)body.branch=cfg.branch;
 const r=await fetch(url(),{method:'PUT',headers:{...hdr(),'Content-Type':'application/json'},body:JSON.stringify(body)});
-if(r.ok){sha=(await r.json()).content.sha;localStorage.setItem('dirty','0');setSt('Synced');break}
+if(r.ok){sha=(await r.json()).content.sha;localStorage.setItem('dirty','0');setSt('Synced, '+data.length+' leads');break}
 if((r.status==409||r.status==422)&&n==0){const x=await remote();sha=x.sha;merge(x.rows);render();continue}
 throw new Error(r.status==401?'Token rejected':r.status==403||r.status==404?'No access to that repo':'GitHub error '+r.status)}
 }catch(e){setSt(e.message||'Offline, saved locally',1)}
 busy=false}
 $('#cfgb').onclick=()=>{$('#c_repo').value=cfg.repo||'';$('#c_tok').value=cfg.token||'';$('#c_path').value=cfg.path||'';$('#c_br').value=cfg.branch||'';$('#s').showModal()};
 $('#c_cx').onclick=()=>$('#s').close();
+$('#c_rb').onclick=()=>{const b=localStorage.getItem('leads_backup');if(!b){alert('No backup found on this device.');return}try{data=JSON.parse(b)}catch(e){return}save();$('#s').close();render()};
 $('#c_off').onclick=()=>{cfg={};localStorage.removeItem('ghcfg');$('#s').close();setSt('Local only')};
 $('#c_sv').onclick=()=>{const n={repo:$('#c_repo').value.trim(),token:$('#c_tok').value.trim(),path:$('#c_path').value.trim(),branch:$('#c_br').value.trim()};
 if(n.repo.split('/').length!=2||!n.token){alert('Enter the repo as owner/name and paste your token.');return}
